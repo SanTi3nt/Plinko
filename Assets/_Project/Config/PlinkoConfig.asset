@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 56e445e1ff637324191170da55ec3b9a, type: 3}
+  m_Name: PlinkoConfig
+  m_EditorClassIdentifier: FunFlow.Plinko.Runtime::FunFlow.Plinko.PlinkoConfig
+  pegRows: 5
+  topRowPegs: 2
+  slotCount: 7
+  horizontalSpacing: 1.15
+  verticalSpacing: 0.95
+  topPegY: 2.4
+  spawnOffsetY: 1.25
+  slotOffsetY: 1.15
+  pegRadius: 0.14
+  ballRadius: 0.22
+  classicDropJitter: 0.18
+  guidedStepDuration: 0.28
+  guidedArcHeight: 0.24
+  backgroundColor: {r: 0.12941177, g: 0.11764706, b: 0.34117648, a: 1}
+  pegColor: {r: 0.6156863, g: 0.56078434, b: 0.9411765, a: 1}
+  pegPulseColor: {r: 1, g: 0.81960785, b: 0.4, a: 1}
+  slotNormalColor: {r: 0.35686275, g: 0.32156864, b: 0.65882355, a: 1}
+  slotBorderColor: {r: 0.4862745, g: 0.44705883, b: 0.8, a: 1}
+  slotSelectedColor: {r: 0.9607843, g: 0.6509804, b: 0.13725491, a: 1}
+  ballColor: {r: 1, g: 0.62352943, b: 0.18039216, a: 1}
+  trailDotColor: {r: 1, g: 0.81960785, b: 0.4, a: 1}
