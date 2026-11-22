@@ -26,12 +26,7 @@ namespace FunFlow.Plinko
 
         private void Awake()
         {
-            if (fillRenderer == null)
-            {
-                fillRenderer = GetComponent<SpriteRenderer>();
-            }
-
-            _baseScale = transform.localScale;
+            CacheState();
         }
 
         public void Initialize(int index, PlinkoConfig cfg, System.Action<int> onSelected, System.Action<int> onBallEntered)
@@ -44,12 +39,7 @@ namespace FunFlow.Plinko
             borderColor = cfg.slotBorderColor;
             selectedColor = cfg.slotSelectedColor;
 
-            if (fillRenderer == null)
-            {
-                fillRenderer = GetComponent<SpriteRenderer>();
-            }
-
-            _baseScale = transform.localScale;
+            CacheState();
 
             if (labelText != null)
             {
@@ -58,12 +48,6 @@ namespace FunFlow.Plinko
             }
 
             ApplyVisualState();
-        }
-
-        public void BindCallbacks(System.Action<int> onSelected, System.Action<int> onBallEntered)
-        {
-            _onSelected = onSelected;
-            _onBallEntered = onBallEntered;
         }
 
         public void SetSelected(bool selected)
@@ -106,21 +90,14 @@ namespace FunFlow.Plinko
                 float t = Mathf.Clamp01(elapsed / duration);
                 float easeOut = 1f - Mathf.Pow(1f - t, 3f);
 
-                float scalePop = Mathf.Lerp(1.16f, 1f, easeOut);
-                transform.localScale = _baseScale * scalePop;
+                transform.localScale = _baseScale * Mathf.Lerp(1.16f, 1f, easeOut);
 
                 if (fillRenderer != null)
                 {
                     fillRenderer.color = Color.Lerp(flashColor, targetColor, easeOut);
                 }
 
-                if (glowRenderer != null)
-                {
-                    Color g = flashColor;
-                    g.a = Mathf.Lerp(0.85f, _isSelected ? 0.35f : 0f, easeOut);
-                    glowRenderer.color = g;
-                }
-
+                SetGlowColor(flashColor, Mathf.Lerp(0.85f, _isSelected ? 0.35f : 0f, easeOut));
                 yield return null;
             }
 
@@ -138,17 +115,31 @@ namespace FunFlow.Plinko
 
             if (borderRenderer != null)
             {
-                borderRenderer.color = _isSelected
-                    ? new Color(1f, 0.88f, 0.55f, 1f)
-                    : borderColor;
+                borderRenderer.color = _isSelected ? new Color(1f, 0.88f, 0.55f, 1f) : borderColor;
             }
 
-            if (glowRenderer != null)
+            SetGlowColor(selectedColor, _isSelected ? 0.35f : 0f);
+        }
+
+        private void SetGlowColor(Color color, float alpha)
+        {
+            if (glowRenderer == null)
             {
-                Color g = selectedColor;
-                g.a = _isSelected ? 0.35f : 0f;
-                glowRenderer.color = g;
+                return;
             }
+
+            color.a = alpha;
+            glowRenderer.color = color;
+        }
+
+        private void CacheState()
+        {
+            if (fillRenderer == null)
+            {
+                fillRenderer = GetComponent<SpriteRenderer>();
+            }
+
+            _baseScale = transform.localScale;
         }
 
         private void OnMouseDown()

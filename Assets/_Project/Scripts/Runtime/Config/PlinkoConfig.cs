@@ -2,9 +2,11 @@ using UnityEngine;
 
 namespace FunFlow.Plinko
 {
-    [CreateAssetMenu(fileName = "PlinkoConfig", menuName = "FunFlow/Plinko Config")]
+    [CreateAssetMenu(fileName = "PlinkoConfig", menuName = "Plinko/Config")]
     public class PlinkoConfig : ScriptableObject
     {
+        public const float CircleFillFraction = 0.92f;
+
         [Header("Board Layout")]
         public int pegRows = 5;
         public int topRowPegs = 2;
@@ -30,6 +32,5 @@ namespace FunFlow.Plinko
         public Color slotBorderColor = new Color(0x7C / 255f, 0x72 / 255f, 0xCC / 255f, 1f);
         public Color slotSelectedColor = new Color(0xF5 / 255f, 0xA6 / 255f, 0x23 / 255f, 1f);
         public Color ballColor = new Color(0xFF / 255f, 0x9F / 255f, 0x2E / 255f, 1f);
-        public Color trailDotColor = new Color(0xFF / 255f, 0xD1 / 255f, 0x66 / 255f, 1f);
     }
 }

@@ -23,11 +23,11 @@ namespace FunFlow.Plinko
         private float _shakeTime;
         private bool _isDropping;
 
-        public int SelectedSlot { get; private set; } = 3;
-        public GameMode CurrentMode { get; private set; } = GameMode.ClassicRandom;
-        public int Hits { get; private set; }
-        public int Attempts { get; private set; }
-        public int Streak { get; private set; }
+        private int _selectedSlot = 3;
+        private GameMode _currentMode = GameMode.ClassicRandom;
+        private int _hits;
+        private int _attempts;
+        private int _streak;
 
         public void SetReferences(
             PlinkoConfig cfg,
@@ -85,12 +85,12 @@ namespace FunFlow.Plinko
                 return;
             }
 
-            SelectedSlot = Mathf.Clamp(SelectedSlot, 0, config.slotCount - 1);
+            _selectedSlot = Mathf.Clamp(_selectedSlot, 0, config.slotCount - 1);
 
             if (board != null)
             {
                 board.BindRuntimeCallbacks(config, SelectSlot, OnBallEnteredSlot, HandlePegBounce);
-                board.HighlightSelectedSlot(SelectedSlot);
+                board.HighlightSelectedSlot(_selectedSlot);
             }
 
             if (hud != null)
@@ -101,9 +101,9 @@ namespace FunFlow.Plinko
                     SelectSlot,
                     DropBall
                 );
-                hud.SetMode(CurrentMode);
-                hud.SetSelectedSlot(SelectedSlot);
-                hud.UpdateStats(Hits, Attempts, Streak);
+                hud.SetMode(_currentMode);
+                hud.SetSelectedSlot(_selectedSlot);
+                hud.UpdateStats(_hits, _attempts, _streak);
                 hud.SetDropInteractable(true);
                 hud.ClearResultBanner();
             }
@@ -130,26 +130,19 @@ namespace FunFlow.Plinko
             }
 
             int clamped = Mathf.Clamp(index, 0, config.slotCount - 1);
-            if (SelectedSlot == clamped)
+            if (_selectedSlot != clamped)
             {
-                if (sfx != null)
+                _selectedSlot = clamped;
+
+                if (board != null)
                 {
-                    sfx.PlaySelect();
+                    board.HighlightSelectedSlot(_selectedSlot);
                 }
 
-                return;
-            }
-
-            SelectedSlot = clamped;
-
-            if (board != null)
-            {
-                board.HighlightSelectedSlot(SelectedSlot);
-            }
-
-            if (hud != null)
-            {
-                hud.SetSelectedSlot(SelectedSlot);
+                if (hud != null)
+                {
+                    hud.SetSelectedSlot(_selectedSlot);
+                }
             }
 
             if (sfx != null)
@@ -160,29 +153,22 @@ namespace FunFlow.Plinko
 
         public void SetMode(GameMode mode)
         {
-            if (_isDropping || CurrentMode == mode)
+            if (_isDropping || _currentMode == mode)
             {
                 return;
             }
 
-            CurrentMode = mode;
+            _currentMode = mode;
 
             if (hud != null)
             {
-                hud.SetMode(CurrentMode);
+                hud.SetMode(_currentMode);
             }
 
             if (sfx != null)
             {
                 sfx.PlaySelect();
             }
-        }
-
-        public void ToggleMode()
-        {
-            SetMode(CurrentMode == GameMode.ClassicRandom
-                ? GameMode.GuidedTarget
-                : GameMode.ClassicRandom);
         }
 
         public void DropBall()
@@ -205,13 +191,13 @@ namespace FunFlow.Plinko
                 hud.ClearResultBanner();
             }
 
-            if (CurrentMode == GameMode.ClassicRandom)
+            if (_currentMode == GameMode.ClassicRandom)
             {
-                _activeBall.LaunchClassic(config, OnBallLanded, null);
+                _activeBall.LaunchClassic(config, OnBallLanded);
             }
             else
             {
-                List<PlinkoMath.GuidedStep> path = PlinkoMath.GenerateGuidedPath(SelectedSlot, config);
+                List<PlinkoMath.GuidedStep> path = PlinkoMath.GenerateGuidedPath(_selectedSlot, config);
                 System.Func<int, int, PegView> pegLookup = board != null ? board.GetPeg : null;
                 _activeBall.LaunchGuided(path, config, pegLookup, HandlePegBounce, OnBallLanded);
             }
@@ -219,7 +205,13 @@ namespace FunFlow.Plinko
 
         private void HandleKeyboardShortcuts()
         {
-            for (int i = 0; i < 7; i++)
+            if (config == null)
+            {
+                return;
+            }
+
+            int keyCount = Mathf.Min(config.slotCount, 9);
+            for (int i = 0; i < keyCount; i++)
             {
                 if (Input.GetKeyDown(KeyCode.Alpha1 + i) || Input.GetKeyDown(KeyCode.Keypad1 + i))
                 {
@@ -236,7 +228,9 @@ namespace FunFlow.Plinko
 
             if (Input.GetKeyDown(KeyCode.M))
             {
-                ToggleMode();
+                SetMode(_currentMode == GameMode.ClassicRandom
+                    ? GameMode.GuidedTarget
+                    : GameMode.ClassicRandom);
             }
         }
 
@@ -263,13 +257,13 @@ namespace FunFlow.Plinko
         private void OnBallLanded(int landedSlot)
         {
             _isDropping = false;
-            Attempts++;
+            _attempts++;
 
-            bool isWin = landedSlot == SelectedSlot;
+            bool isWin = landedSlot == _selectedSlot;
             if (isWin)
             {
-                Hits++;
-                Streak++;
+                _hits++;
+                _streak++;
                 if (sfx != null)
                 {
                     sfx.PlayWin();
@@ -279,7 +273,7 @@ namespace FunFlow.Plinko
             }
             else
             {
-                Streak = 0;
+                _streak = 0;
                 if (sfx != null)
                 {
                     sfx.PlayMiss();
@@ -299,8 +293,8 @@ namespace FunFlow.Plinko
 
             if (hud != null)
             {
-                hud.UpdateStats(Hits, Attempts, Streak);
-                hud.ShowResultBanner(isWin, landedSlot, SelectedSlot);
+                hud.UpdateStats(_hits, _attempts, _streak);
+                hud.ShowResultBanner(isWin, landedSlot, _selectedSlot);
                 hud.SetDropInteractable(true);
             }
         }
@@ -328,7 +322,6 @@ namespace FunFlow.Plinko
             }
 
             _activeBall.ApplyConfig(config);
-            _activeBall.ClearTrail();
 
             var rb = _activeBall.GetComponent<Rigidbody2D>();
             if (rb != null)

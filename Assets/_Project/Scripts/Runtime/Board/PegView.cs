@@ -23,21 +23,14 @@ namespace FunFlow.Plinko
 
         private void Awake()
         {
-            if (bodyRenderer == null)
-            {
-                bodyRenderer = GetComponent<SpriteRenderer>();
-            }
+            CacheBodyRenderer();
         }
 
         public void Initialize(int pegRow, int pegCol, PlinkoConfig cfg)
         {
             row = pegRow;
             col = pegCol;
-
-            if (bodyRenderer == null)
-            {
-                bodyRenderer = GetComponent<SpriteRenderer>();
-            }
+            CacheBodyRenderer();
 
             normalColor = cfg.pegColor;
             pulseColor = cfg.pegPulseColor;
@@ -45,10 +38,10 @@ namespace FunFlow.Plinko
             float spriteRadius = 0.58f;
             if (bodyRenderer != null && bodyRenderer.sprite != null)
             {
-                spriteRadius = bodyRenderer.sprite.bounds.extents.x * SpriteFactory.CircleFillFraction;
-                if (spriteRadius <= 0.001f)
+                float candidate = bodyRenderer.sprite.bounds.extents.x * PlinkoConfig.CircleFillFraction;
+                if (candidate > 0.001f)
                 {
-                    spriteRadius = 0.58f;
+                    spriteRadius = candidate;
                 }
             }
 
@@ -62,17 +55,7 @@ namespace FunFlow.Plinko
                 circleCol.radius = spriteRadius;
             }
 
-            if (bodyRenderer != null)
-            {
-                bodyRenderer.color = normalColor;
-            }
-
-            if (glowRenderer != null)
-            {
-                Color c = pulseColor;
-                c.a = 0f;
-                glowRenderer.color = c;
-            }
+            ApplyVisual(1f);
         }
 
         public void Pulse()
@@ -100,49 +83,42 @@ namespace FunFlow.Plinko
                 elapsed += Time.unscaledDeltaTime;
                 float t = Mathf.Clamp01(elapsed / duration);
                 float easeOut = 1f - Mathf.Pow(1f - t, 3f);
-
-                float scaleFactor = Mathf.Lerp(1.38f, 1f, easeOut);
-                transform.localScale = baseScale * scaleFactor;
-
-                if (bodyRenderer != null)
-                {
-                    bodyRenderer.color = Color.Lerp(pulseColor, normalColor, easeOut);
-                }
-
-                if (glowRenderer != null)
-                {
-                    Color g = pulseColor;
-                    g.a = Mathf.Lerp(0.75f, 0f, easeOut);
-                    glowRenderer.color = g;
-                }
-
+                ApplyVisual(easeOut);
                 yield return null;
             }
 
-            transform.localScale = baseScale;
+            ApplyVisual(1f);
+            _pulseCoroutine = null;
+        }
+
+        private void ApplyVisual(float easeOut)
+        {
+            transform.localScale = baseScale * Mathf.Lerp(1.38f, 1f, easeOut);
+
             if (bodyRenderer != null)
             {
-                bodyRenderer.color = normalColor;
+                bodyRenderer.color = Color.Lerp(pulseColor, normalColor, easeOut);
             }
 
             if (glowRenderer != null)
             {
                 Color g = pulseColor;
-                g.a = 0f;
+                g.a = Mathf.Lerp(0.75f, 0f, easeOut);
                 glowRenderer.color = g;
             }
+        }
 
-            _pulseCoroutine = null;
+        private void CacheBodyRenderer()
+        {
+            if (bodyRenderer == null)
+            {
+                bodyRenderer = GetComponent<SpriteRenderer>();
+            }
         }
 
         private void OnCollisionEnter2D(Collision2D collision)
         {
-            if (collision.collider == null)
-            {
-                return;
-            }
-
-            if (collision.collider.GetComponent<PlinkoBall>() != null)
+            if (collision.collider != null && collision.collider.GetComponent<PlinkoBall>() != null)
             {
                 Pulse();
                 OnPegHit?.Invoke(this);

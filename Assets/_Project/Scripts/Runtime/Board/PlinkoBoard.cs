@@ -14,8 +14,21 @@ namespace FunFlow.Plinko
 
         private System.Action _onPegHitCallback;
 
-        public int PegCount => pegs != null ? pegs.Length : 0;
-        public int SlotCount => slots != null ? slots.Length : 0;
+        private void OnDestroy()
+        {
+            if (pegs == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < pegs.Length; i++)
+            {
+                if (pegs[i] != null)
+                {
+                    pegs[i].OnPegHit -= HandlePegHit;
+                }
+            }
+        }
 
         public void ClearBoard()
         {
@@ -36,7 +49,6 @@ namespace FunFlow.Plinko
         public void BuildBoard(
             PlinkoConfig cfg,
             Sprite circleSprite,
-            Sprite glowSprite,
             Sprite slotSprite,
             PhysicsMaterial2D pegMat,
             GameObject pegPrefab,
@@ -64,12 +76,6 @@ namespace FunFlow.Plinko
                         circleCol.sharedMaterial = pegMat;
                     }
 
-                    var sr = pegGo.GetComponent<SpriteRenderer>();
-                    if (sr != null && circleSprite != null && sr.sprite == null)
-                    {
-                        sr.sprite = circleSprite;
-                    }
-
                     var pegView = pegGo.GetComponent<PegView>();
                     if (pegView != null)
                     {
@@ -81,18 +87,12 @@ namespace FunFlow.Plinko
 
             pegs = builtPegs.ToArray();
 
-            var builtSlots = new List<SlotView>();
+            var builtSlots = new List<SlotView>(cfg.slotCount);
             for (int i = 0; i < cfg.slotCount; i++)
             {
                 Vector2 pos = PlinkoMath.GetSlotPosition(i, cfg);
                 GameObject slotGo = Instantiate(slotPrefab, pos, Quaternion.identity, slotsContainer);
                 slotGo.name = $"Slot_{i + 1}";
-
-                var sr = slotGo.GetComponent<SpriteRenderer>();
-                if (sr != null && slotSprite != null && sr.sprite == null)
-                {
-                    sr.sprite = slotSprite;
-                }
 
                 var slotView = slotGo.GetComponent<SlotView>();
                 if (slotView != null)
@@ -136,12 +136,10 @@ namespace FunFlow.Plinko
                 for (int i = 0; i < slots.Length; i++)
                 {
                     SlotView slot = slots[i];
-                    if (slot == null)
+                    if (slot != null)
                     {
-                        continue;
+                        slot.Initialize(slot.SlotIndex, cfg, onSlotSelected, onBallEntered);
                     }
-
-                    slot.Initialize(slot.SlotIndex, cfg, onSlotSelected, onBallEntered);
                 }
             }
         }
@@ -167,12 +165,7 @@ namespace FunFlow.Plinko
 
         public SlotView GetSlot(int index)
         {
-            if (slots == null || index < 0 || index >= slots.Length)
-            {
-                return null;
-            }
-
-            return slots[index];
+            return slots != null && index >= 0 && index < slots.Length ? slots[index] : null;
         }
 
         public void HighlightSelectedSlot(int index)
@@ -215,7 +208,8 @@ namespace FunFlow.Plinko
         private void BuildContainmentWalls(PlinkoConfig cfg, Sprite wallSprite, PhysicsMaterial2D wallMat)
         {
             float topY = cfg.topPegY + cfg.spawnOffsetY + 0.5f;
-            float bottomY = PlinkoMath.GetSlotPosition(0, cfg).y - 0.65f;
+            float slotY = PlinkoMath.GetSlotPosition(0, cfg).y;
+            float bottomY = slotY - 0.65f;
 
             float topHalfWidth = (cfg.topRowPegs - 1) * 0.5f * cfg.horizontalSpacing + 1.25f;
             float bottomHalfWidth = (cfg.slotCount - 1) * 0.5f * cfg.horizontalSpacing + 0.95f;
@@ -240,7 +234,6 @@ namespace FunFlow.Plinko
                 cfg.slotBorderColor
             );
 
-            float slotY = PlinkoMath.GetSlotPosition(0, cfg).y;
             float floorWidth = bottomHalfWidth * 2f + 0.25f;
             CreateBoxWall(
                 "BottomFloor",
@@ -252,7 +245,6 @@ namespace FunFlow.Plinko
                 cfg.slotBorderColor
             );
 
-            // Thin dividers between slots so dynamic Classic balls settle cleanly into one bucket
             for (int i = 0; i < cfg.slotCount - 1; i++)
             {
                 float x = (i - (cfg.slotCount - 1) * 0.5f + 0.5f) * cfg.horizontalSpacing;
@@ -279,10 +271,8 @@ namespace FunFlow.Plinko
         {
             Vector2 mid = (start + end) * 0.5f;
             Vector2 delta = end - start;
-            float length = delta.magnitude;
             float angleDeg = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
-
-            CreateBoxWall(wallName, mid, new Vector2(length, thickness), angleDeg, sprite, mat, color);
+            CreateBoxWall(wallName, mid, new Vector2(delta.magnitude, thickness), angleDeg, sprite, mat, color);
         }
 
         private void CreateBoxWall(
@@ -310,10 +300,10 @@ namespace FunFlow.Plinko
             {
                 var sr = go.AddComponent<SpriteRenderer>();
                 sr.sprite = sprite;
-                Color railColor = color;
-                railColor.a = 0.45f;
-                sr.color = railColor;
+                color.a = 0.45f;
+                sr.color = color;
                 sr.sortingOrder = 0;
+
                 Vector2 spriteSize = sprite.bounds.size;
                 if (spriteSize.x > 0.001f && spriteSize.y > 0.001f)
                 {

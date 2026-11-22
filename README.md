@@ -1,4 +1,4 @@
-# FunFlow — Plinko (Unity 6)
+# Plinko (Unity 6)
 
 Минималистичная 2D-игра Plinko на **Unity 6** с двумя режимами броска, процедурным звуком, визуальным откликом (Game Feel) и модульными EditMode-тестами.
 
@@ -28,15 +28,14 @@
 Assets/_Project/
 ├── Art/
 │   ├── Materials/       # PhysicsMaterial2D для шарика и колышков
-│   └── Sprites/         # Процедурно сгенерированные спрайты (круг, свечение, скруглённый квадрат)
-├── Audio/               # Папка для аудио-ассетов (звуки синтезируются процедурно в ProceduralSfx)
+│   └── Sprites/         # Спрайты (круг, свечение, скруглённый квадрат), создаваемые PlinkoSceneBuilder
 ├── Config/              # ScriptableObject-конфигурация PlinkoConfig.asset
 ├── Prefabs/             # Префабы шарика, колышка и ячейки (Ball, Peg, Slot)
 ├── Scenes/
 │   └── Main.unity       # Основная игровая сцена
 └── Scripts/
-    ├── Runtime/         # Игровая логика (asmdef: FunFlow.Plinko.Runtime)
-    ├── Editor/          # Сборщик сцены и ассетов PlinkoSceneBuilder (asmdef: FunFlow.Plinko.Editor)
+    ├── Runtime/         # Игровая логика (asmdef: FunFlow.Plinko.Runtime; включает Audio/ProceduralSfx.cs)
+    ├── Editor/          # Сборщик сцены, спрайтов и ассетов PlinkoSceneBuilder (asmdef: FunFlow.Plinko.Editor)
     └── Tests/
         └── EditMode/    # 4 NUnit-теста математики пирамиды и маршрутов (asmdef: FunFlow.Plinko.Tests.EditMode)
 ```
@@ -48,7 +47,7 @@ Assets/_Project/
 1. Откройте папку проекта в **Unity Hub** с версией редактора **Unity 6000.6.5f1**.
 2. Откройте сцену `Assets/_Project/Scenes/Main.unity`.
    - При необходимости пересоздать сцену и ассеты с нуля выполните в верхнем меню Unity:
-     **`FunFlow -> Rebuild Plinko Scene & Assets`**.
+     **`Plinko -> Rebuild Scene & Assets`**.
 3. Нажмите **Play** в редакторе для запуска игры.
 4. Для запуска EditMode-тестов откройте **`Window -> General -> Test Runner`**, выберите вкладку **EditMode** и нажмите **Run All**.
 

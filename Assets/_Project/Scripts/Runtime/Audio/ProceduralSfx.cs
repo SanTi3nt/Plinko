@@ -39,21 +39,13 @@ namespace FunFlow.Plinko
             });
 
             _winClip = CreateToneClip("WinChime", 0.38f, t =>
-            {
-                float sample = 0f;
-                sample += NoteBurst(t, 0.00f, 523.25f, 12f) * 0.32f;
-                sample += NoteBurst(t, 0.09f, 659.25f, 12f) * 0.32f;
-                sample += NoteBurst(t, 0.18f, 783.99f, 10f) * 0.36f;
-                return sample;
-            });
+                NoteBurst(t, 0.00f, 523.25f, 12f) * 0.32f +
+                NoteBurst(t, 0.09f, 659.25f, 12f) * 0.32f +
+                NoteBurst(t, 0.18f, 783.99f, 10f) * 0.36f);
 
             _missClip = CreateToneClip("MissThud", 0.22f, t =>
-            {
-                float sample = 0f;
-                sample += NoteBurst(t, 0.00f, 260f, 16f) * 0.3f;
-                sample += NoteBurst(t, 0.08f, 195f, 14f) * 0.32f;
-                return sample;
-            });
+                NoteBurst(t, 0.00f, 260f, 16f) * 0.3f +
+                NoteBurst(t, 0.08f, 195f, 14f) * 0.32f);
         }
 
         private void OnDestroy()
@@ -64,48 +56,20 @@ namespace FunFlow.Plinko
             DestroyClip(_missClip);
         }
 
-        public void PlayPegTick()
+        public void PlayPegTick() => Play(_pegTickClip, 0.7f, Random.Range(0.94f, 1.08f));
+        public void PlaySelect() => Play(_selectClip, 0.75f);
+        public void PlayWin() => Play(_winClip, 0.9f);
+        public void PlayMiss() => Play(_missClip, 0.8f);
+
+        private void Play(AudioClip clip, float volume, float pitch = 1f)
         {
-            if (audioSource == null || _pegTickClip == null)
+            if (audioSource == null || clip == null)
             {
                 return;
             }
 
-            audioSource.pitch = Random.Range(0.94f, 1.08f);
-            audioSource.PlayOneShot(_pegTickClip, 0.7f);
-        }
-
-        public void PlaySelect()
-        {
-            if (audioSource == null || _selectClip == null)
-            {
-                return;
-            }
-
-            audioSource.pitch = 1f;
-            audioSource.PlayOneShot(_selectClip, 0.75f);
-        }
-
-        public void PlayWin()
-        {
-            if (audioSource == null || _winClip == null)
-            {
-                return;
-            }
-
-            audioSource.pitch = 1f;
-            audioSource.PlayOneShot(_winClip, 0.9f);
-        }
-
-        public void PlayMiss()
-        {
-            if (audioSource == null || _missClip == null)
-            {
-                return;
-            }
-
-            audioSource.pitch = 1f;
-            audioSource.PlayOneShot(_missClip, 0.8f);
+            audioSource.pitch = pitch;
+            audioSource.PlayOneShot(clip, volume);
         }
 
         private static float NoteBurst(float t, float start, float freq, float decay)
@@ -126,8 +90,7 @@ namespace FunFlow.Plinko
             float[] data = new float[sampleCount];
             for (int i = 0; i < sampleCount; i++)
             {
-                float t = (float)i / SampleRate;
-                data[i] = Mathf.Clamp(sampleFunc(t), -1f, 1f);
+                data[i] = Mathf.Clamp(sampleFunc((float)i / SampleRate), -1f, 1f);
             }
 
             AudioClip clip = AudioClip.Create(clipName, sampleCount, 1, SampleRate, false);

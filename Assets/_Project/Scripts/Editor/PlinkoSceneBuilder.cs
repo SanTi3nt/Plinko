@@ -10,10 +10,11 @@ namespace FunFlow.Plinko.Editor
 {
     public static class PlinkoSceneBuilder
     {
+        private const float DefaultPixelsPerUnit = 100f;
+
         private const string RootFolder = "Assets/_Project";
         private const string SpritesFolder = RootFolder + "/Art/Sprites";
         private const string MaterialsFolder = RootFolder + "/Art/Materials";
-        private const string AudioFolder = RootFolder + "/Audio";
         private const string ConfigFolder = RootFolder + "/Config";
         private const string PrefabsFolder = RootFolder + "/Prefabs";
         private const string ScenesFolder = RootFolder + "/Scenes";
@@ -31,14 +32,14 @@ namespace FunFlow.Plinko.Editor
         private const string BallPrefabPath = PrefabsFolder + "/Ball.prefab";
         private const string MainScenePath = ScenesFolder + "/Main.unity";
 
-        [MenuItem("FunFlow/Rebuild Plinko Scene & Assets")]
+        [MenuItem("Plinko/Rebuild Scene & Assets")]
         public static void BuildProjectAssets()
         {
             EnsureDirectories();
 
-            Sprite circleSprite = CreateAndImportSprite(CircleSpritePath, SpriteFactory.CreateCircleTexture(128));
-            Sprite glowSprite = CreateAndImportSprite(GlowSpritePath, SpriteFactory.CreateGlowTexture(128));
-            Sprite roundedSquareSprite = CreateAndImportSprite(RoundedSquareSpritePath, SpriteFactory.CreateRoundedSquareTexture(128, 0.22f));
+            Sprite circleSprite = CreateAndImportSprite(CircleSpritePath, CreateCircleTexture(128));
+            Sprite glowSprite = CreateAndImportSprite(GlowSpritePath, CreateGlowTexture(128));
+            Sprite roundedSquareSprite = CreateAndImportSprite(RoundedSquareSpritePath, CreateRoundedSquareTexture(128, 0.22f));
 
             PhysicsMaterial2D ballMat = CreateOrUpdatePhysicsMaterial(BallMatPath, 0.45f, 0.05f);
             PhysicsMaterial2D pegMat = CreateOrUpdatePhysicsMaterial(PegMatPath, 0.52f, 0.02f);
@@ -49,11 +50,11 @@ namespace FunFlow.Plinko.Editor
             GameObject slotPrefab = CreateSlotPrefab(config, roundedSquareSprite, glowSprite);
             GameObject ballPrefabGo = CreateBallPrefab(config, circleSprite, ballMat);
 
-            BuildMainScene(config, circleSprite, glowSprite, roundedSquareSprite, pegMat, pegPrefab, slotPrefab, ballPrefabGo);
+            BuildMainScene(config, circleSprite, roundedSquareSprite, pegMat, pegPrefab, slotPrefab, ballPrefabGo);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("[FunFlow] Plinko assets and Main.unity scene rebuilt successfully.");
+            Debug.Log("[Plinko] Assets and Main.unity rebuilt.");
         }
 
         private static void EnsureDirectories()
@@ -62,7 +63,6 @@ namespace FunFlow.Plinko.Editor
             {
                 SpritesFolder,
                 MaterialsFolder,
-                AudioFolder,
                 ConfigFolder,
                 PrefabsFolder,
                 ScenesFolder
@@ -94,7 +94,7 @@ namespace FunFlow.Plinko.Editor
             {
                 importer.textureType = TextureImporterType.Sprite;
                 importer.spriteImportMode = SpriteImportMode.Single;
-                importer.spritePixelsPerUnit = SpriteFactory.DefaultPixelsPerUnit;
+                importer.spritePixelsPerUnit = DefaultPixelsPerUnit;
                 importer.filterMode = FilterMode.Bilinear;
                 importer.alphaIsTransparency = true;
                 importer.mipmapEnabled = false;
@@ -282,19 +282,11 @@ namespace FunFlow.Plinko.Editor
                 col.radius = 0.58f;
                 col.sharedMaterial = ballMat;
 
-                var trail = root.AddComponent<DottedPathRenderer>();
-                trail.Configure(circleSprite, cfg.trailDotColor);
-                var trailSo = new SerializedObject(trail);
-                trailSo.FindProperty("dotSprite").objectReferenceValue = circleSprite;
-                trailSo.FindProperty("dotColor").colorValue = cfg.trailDotColor;
-                trailSo.ApplyModifiedPropertiesWithoutUndo();
-
                 var ball = root.AddComponent<PlinkoBall>();
                 var ballSo = new SerializedObject(ball);
                 ballSo.FindProperty("rb").objectReferenceValue = rb;
                 ballSo.FindProperty("circleCollider").objectReferenceValue = col;
                 ballSo.FindProperty("bodyRenderer").objectReferenceValue = bodySr;
-                ballSo.FindProperty("pathRenderer").objectReferenceValue = trail;
                 ballSo.ApplyModifiedPropertiesWithoutUndo();
 
                 ball.ApplyConfig(cfg);
@@ -310,7 +302,6 @@ namespace FunFlow.Plinko.Editor
         private static void BuildMainScene(
             PlinkoConfig cfg,
             Sprite circleSprite,
-            Sprite glowSprite,
             Sprite roundedSquareSprite,
             PhysicsMaterial2D pegMat,
             GameObject pegPrefab,
@@ -333,7 +324,7 @@ namespace FunFlow.Plinko.Editor
             // PlinkoBoard
             var boardGo = new GameObject("PlinkoBoard");
             var board = boardGo.AddComponent<PlinkoBoard>();
-            board.BuildBoard(cfg, circleSprite, glowSprite, roundedSquareSprite, pegMat, pegPrefab, slotPrefab);
+            board.BuildBoard(cfg, circleSprite, roundedSquareSprite, pegMat, pegPrefab, slotPrefab);
             board.HighlightSelectedSlot(3);
 
             // ProceduralSfx
@@ -396,7 +387,7 @@ namespace FunFlow.Plinko.Editor
             CreateUiText(
                 "TitleText",
                 topBar,
-                "FUNFLOW  PLINKO",
+                "PLINKO",
                 font,
                 34,
                 FontStyle.Bold,
@@ -708,6 +699,100 @@ namespace FunFlow.Plinko.Editor
             txt.alignment = TextAnchor.MiddleCenter;
             txt.text = label;
             txt.raycastTarget = false;
+        }
+
+        private static Texture2D CreateCircleTexture(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                name = "Circle",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+
+            float half = (size - 1) * 0.5f;
+            float radius = size * 0.5f * PlinkoConfig.CircleFillFraction;
+            var pixels = new Color32[size * size];
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = x - half;
+                    float dy = y - half;
+                    float alpha = Mathf.Clamp01(radius - Mathf.Sqrt(dx * dx + dy * dy) + 0.75f);
+                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(alpha * 255f));
+                }
+            }
+
+            tex.SetPixels32(pixels);
+            tex.Apply();
+            return tex;
+        }
+
+        private static Texture2D CreateGlowTexture(int size)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                name = "Glow",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+
+            float half = (size - 1) * 0.5f;
+            float maxDist = size * 0.5f;
+            var pixels = new Color32[size * size];
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float dx = x - half;
+                    float dy = y - half;
+                    float t = Mathf.Clamp01(Mathf.Sqrt(dx * dx + dy * dy) / maxDist);
+                    float falloff = 1f - t;
+                    float alpha = Mathf.Clamp01(falloff * falloff * (1f - 0.15f * t));
+                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(alpha * 255f));
+                }
+            }
+
+            tex.SetPixels32(pixels);
+            tex.Apply();
+            return tex;
+        }
+
+        private static Texture2D CreateRoundedSquareTexture(int size, float cornerRadiusFraction)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                name = "RoundedSquare",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp
+            };
+
+            float half = (size - 1) * 0.5f;
+            float halfBox = size * 0.5f * 0.94f;
+            float cornerRadius = halfBox * Mathf.Clamp01(cornerRadiusFraction);
+            float innerHalf = halfBox - cornerRadius;
+            var pixels = new Color32[size * size];
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float px = Mathf.Abs(x - half) - innerHalf;
+                    float py = Mathf.Abs(y - half) - innerHalf;
+                    float qx = Mathf.Max(px, 0f);
+                    float qy = Mathf.Max(py, 0f);
+                    float dist = Mathf.Sqrt(qx * qx + qy * qy) + Mathf.Min(Mathf.Max(px, py), 0f) - cornerRadius;
+                    float alpha = Mathf.Clamp01(0.75f - dist);
+                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(alpha * 255f));
+                }
+            }
+
+            tex.SetPixels32(pixels);
+            tex.Apply();
+            return tex;
         }
     }
 }

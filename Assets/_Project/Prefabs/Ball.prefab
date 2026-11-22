@@ -12,7 +12,6 @@ GameObject:
   - component: {fileID: 8547348120540885143}
   - component: {fileID: 4119390878975972878}
   - component: {fileID: 6123922658132290742}
-  - component: {fileID: 5520163313484679282}
   - component: {fileID: 7705761439290464647}
   m_Layer: 0
   m_Name: Ball
@@ -159,23 +158,6 @@ CircleCollider2D:
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
   m_Radius: 0.5888
---- !u!114 &5520163313484679282
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2416133740333727888}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8bf671d8c62bf2a4386e169a4c9a15d8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: FunFlow.Plinko.Runtime::FunFlow.Plinko.DottedPathRenderer
-  dotSprite: {fileID: 21300000, guid: 704871c6b2570b9418db685ae4a6628c, type: 3}
-  dotSpacing: 0.18
-  dotScale: 0.11
-  sortingOrder: 3
-  dotColor: {r: 1, g: 0.81960785, b: 0.4, a: 1}
 --- !u!114 &7705761439290464647
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -191,4 +173,3 @@ MonoBehaviour:
   rb: {fileID: 4119390878975972878}
   circleCollider: {fileID: 6123922658132290742}
   bodyRenderer: {fileID: 8547348120540885143}
-  pathRenderer: {fileID: 5520163313484679282}

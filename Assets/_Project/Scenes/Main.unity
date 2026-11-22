@@ -10964,7 +10964,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: FUNFLOW  PLINKO
+  m_Text: PLINKO
 --- !u!222 &1829508467
 CanvasRenderer:
   m_ObjectHideFlags: 0

@@ -32,4 +32,3 @@ MonoBehaviour:
   slotBorderColor: {r: 0.4862745, g: 0.44705883, b: 0.8, a: 1}
   slotSelectedColor: {r: 0.9607843, g: 0.6509804, b: 0.13725491, a: 1}
   ballColor: {r: 1, g: 0.62352943, b: 0.18039216, a: 1}
-  trailDotColor: {r: 1, g: 0.81960785, b: 0.4, a: 1}
