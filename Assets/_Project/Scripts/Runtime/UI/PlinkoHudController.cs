@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace FunFlow.Plinko
@@ -80,16 +81,31 @@ namespace FunFlow.Plinko
             System.Action<int> onSlotSelected,
             System.Action onDropClicked)
         {
+            if (EventSystem.current != null)
+            {
+                EventSystem.current.sendNavigationEvents = false;
+            }
+
             if (classicModeButton != null)
             {
+                DisableNavigation(classicModeButton);
                 classicModeButton.onClick.RemoveAllListeners();
-                classicModeButton.onClick.AddListener(() => onClassicSelected?.Invoke());
+                classicModeButton.onClick.AddListener(() =>
+                {
+                    ClearUiFocus();
+                    onClassicSelected?.Invoke();
+                });
             }
 
             if (guidedModeButton != null)
             {
+                DisableNavigation(guidedModeButton);
                 guidedModeButton.onClick.RemoveAllListeners();
-                guidedModeButton.onClick.AddListener(() => onGuidedSelected?.Invoke());
+                guidedModeButton.onClick.AddListener(() =>
+                {
+                    ClearUiFocus();
+                    onGuidedSelected?.Invoke();
+                });
             }
 
             if (slotButtons != null)
@@ -100,16 +116,44 @@ namespace FunFlow.Plinko
                     Button btn = slotButtons[i];
                     if (btn != null)
                     {
+                        DisableNavigation(btn);
                         btn.onClick.RemoveAllListeners();
-                        btn.onClick.AddListener(() => onSlotSelected?.Invoke(index));
+                        btn.onClick.AddListener(() =>
+                        {
+                            ClearUiFocus();
+                            onSlotSelected?.Invoke(index);
+                        });
                     }
                 }
             }
 
             if (dropButton != null)
             {
+                DisableNavigation(dropButton);
                 dropButton.onClick.RemoveAllListeners();
-                dropButton.onClick.AddListener(() => onDropClicked?.Invoke());
+                dropButton.onClick.AddListener(() =>
+                {
+                    ClearUiFocus();
+                    onDropClicked?.Invoke();
+                });
+            }
+        }
+
+        private static void DisableNavigation(Selectable selectable)
+        {
+            if (selectable == null)
+            {
+                return;
+            }
+
+            selectable.navigation = new Navigation { mode = Navigation.Mode.None };
+        }
+
+        private static void ClearUiFocus()
+        {
+            if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null)
+            {
+                EventSystem.current.SetSelectedGameObject(null);
             }
         }
 

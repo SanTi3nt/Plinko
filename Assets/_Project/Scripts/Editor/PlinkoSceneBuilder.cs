@@ -343,7 +343,8 @@ namespace FunFlow.Plinko.Editor
 
             // EventSystem
             var eventSystemGo = new GameObject("EventSystem");
-            eventSystemGo.AddComponent<EventSystem>();
+            var eventSystem = eventSystemGo.AddComponent<EventSystem>();
+            eventSystem.sendNavigationEvents = false;
             eventSystemGo.AddComponent<StandaloneInputModule>();
 
             EditorSceneManager.SaveScene(scene, MainScenePath);
@@ -682,6 +683,7 @@ namespace FunFlow.Plinko.Editor
 
             button = go.AddComponent<Button>();
             button.targetGraphic = background;
+            button.navigation = new Navigation { mode = Navigation.Mode.None };
 
             var textGo = new GameObject("Text");
             textGo.transform.SetParent(go.transform, false);

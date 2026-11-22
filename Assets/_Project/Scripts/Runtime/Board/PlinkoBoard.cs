@@ -13,20 +13,31 @@ namespace FunFlow.Plinko
         [SerializeField] private Transform wallsContainer;
 
         private System.Action _onPegHitCallback;
+        private Coroutine _dispenserPulseCoroutine;
+        private Sprite _fallbackBarSprite;
 
         private void OnDestroy()
         {
-            if (pegs == null)
+            if (pegs != null)
             {
-                return;
+                for (int i = 0; i < pegs.Length; i++)
+                {
+                    if (pegs[i] != null)
+                    {
+                        pegs[i].OnPegHit -= HandlePegHit;
+                    }
+                }
             }
 
-            for (int i = 0; i < pegs.Length; i++)
+            if (_fallbackBarSprite != null)
             {
-                if (pegs[i] != null)
+                if (_fallbackBarSprite.texture != null)
                 {
-                    pegs[i].OnPegHit -= HandlePegHit;
+                    Destroy(_fallbackBarSprite.texture);
                 }
+
+                Destroy(_fallbackBarSprite);
+                _fallbackBarSprite = null;
             }
         }
 
@@ -104,17 +115,18 @@ namespace FunFlow.Plinko
 
             slots = builtSlots.ToArray();
 
-            BuildSpawnMarker(cfg, circleSprite);
+            BuildSpawnMarker(cfg, slotSprite);
             BuildContainmentWalls(cfg, slotSprite, pegMat);
         }
 
         public void BindRuntimeCallbacks(
             PlinkoConfig cfg,
             System.Action<int> onSlotSelected,
-            System.Action<int> onBallEntered,
+            System.Action<int, PlinkoBall> onBallEntered,
             System.Action onPegHit)
         {
             _onPegHitCallback = onPegHit;
+            EnsureDispenser(cfg);
 
             if (pegs != null)
             {
@@ -189,20 +201,139 @@ namespace FunFlow.Plinko
             _onPegHitCallback?.Invoke();
         }
 
-        private void BuildSpawnMarker(PlinkoConfig cfg, Sprite circleSprite)
+        public void PulseDispenser()
         {
-            var markerGo = new GameObject("SpawnMarker");
-            markerGo.transform.SetParent(transform, false);
-            markerGo.transform.position = PlinkoMath.GetSpawnPosition(cfg);
+            if (spawnMarker == null || !gameObject.activeInHierarchy)
+            {
+                return;
+            }
 
-            var sr = markerGo.AddComponent<SpriteRenderer>();
-            sr.sprite = circleSprite;
-            Color c = cfg.ballColor;
-            c.a = 0.35f;
-            sr.color = c;
-            sr.sortingOrder = 1;
-            markerGo.transform.localScale = Vector3.one * (cfg.ballRadius * 1.45f);
-            spawnMarker = markerGo.transform;
+            if (_dispenserPulseCoroutine != null)
+            {
+                StopCoroutine(_dispenserPulseCoroutine);
+            }
+
+            _dispenserPulseCoroutine = StartCoroutine(DispenserPulseRoutine());
+        }
+
+        private System.Collections.IEnumerator DispenserPulseRoutine()
+        {
+            const float duration = 0.14f;
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                float bump = Mathf.Sin(t * Mathf.PI) * 0.12f;
+                spawnMarker.localScale = new Vector3(1f + bump, 1f - bump * 0.5f, 1f);
+                yield return null;
+            }
+
+            spawnMarker.localScale = Vector3.one;
+            _dispenserPulseCoroutine = null;
+        }
+
+        private void EnsureDispenser(PlinkoConfig cfg)
+        {
+            if (cfg == null)
+            {
+                return;
+            }
+
+            if (spawnMarker != null && spawnMarker.childCount >= 3)
+            {
+                return;
+            }
+
+            if (spawnMarker != null)
+            {
+                DestroyObjectSmart(spawnMarker.gameObject);
+                spawnMarker = null;
+            }
+
+            BuildSpawnMarker(cfg, GetOrCreateFallbackBarSprite());
+        }
+
+        private Sprite GetOrCreateFallbackBarSprite()
+        {
+            if (_fallbackBarSprite == null)
+            {
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                tex.SetPixels(new[] { Color.white, Color.white, Color.white, Color.white });
+                tex.Apply();
+                _fallbackBarSprite = Sprite.Create(tex, new Rect(0f, 0f, 2f, 2f), new Vector2(0.5f, 0.5f), 2f);
+            }
+
+            return _fallbackBarSprite;
+        }
+
+        private void BuildSpawnMarker(PlinkoConfig cfg, Sprite barSprite)
+        {
+            if (barSprite == null)
+            {
+                barSprite = GetOrCreateFallbackBarSprite();
+            }
+
+            var dispenserGo = new GameObject("SpawnDispenser");
+            dispenserGo.transform.SetParent(transform, false);
+            Vector2 spawnPos = PlinkoMath.GetSpawnPosition(cfg);
+            dispenserGo.transform.position = new Vector3(spawnPos.x, spawnPos.y + 0.18f, 0f);
+            spawnMarker = dispenserGo.transform;
+
+            float mouthHalfWidth = Mathf.Max(cfg.ballRadius + cfg.classicDropJitter + 0.08f, 0.42f);
+            float topHalfWidth = mouthHalfWidth + 0.36f;
+
+            Color bodyColor = cfg.slotNormalColor;
+            Color rimColor = cfg.slotBorderColor;
+            Color accentColor = cfg.ballColor;
+
+            // Back plate inside the chute so balls appear to emerge from inside the funnel
+            CreateDispenserPart("ChuteBack", dispenserGo.transform, barSprite,
+                new Vector2(0f, 0.24f), new Vector2(mouthHalfWidth * 2.1f, 0.52f), 0f,
+                new Color(bodyColor.r * 0.45f, bodyColor.g * 0.45f, bodyColor.b * 0.55f, 0.92f), 2);
+
+            // Left & right angled funnel wings
+            CreateDispenserPart("FunnelLeft", dispenserGo.transform, barSprite,
+                new Vector2(-(mouthHalfWidth + topHalfWidth) * 0.5f, 0.36f), new Vector2(0.11f, 0.62f), 32f,
+                rimColor, 8);
+            CreateDispenserPart("FunnelRight", dispenserGo.transform, barSprite,
+                new Vector2((mouthHalfWidth + topHalfWidth) * 0.5f, 0.36f), new Vector2(0.11f, 0.62f), -32f,
+                rimColor, 8);
+
+            // Nozzle collar & glowing exit rim
+            CreateDispenserPart("NozzleCollar", dispenserGo.transform, barSprite,
+                new Vector2(0f, 0.06f), new Vector2(mouthHalfWidth * 2.15f, 0.14f), 0f,
+                bodyColor, 8);
+            CreateDispenserPart("NozzleRim", dispenserGo.transform, barSprite,
+                new Vector2(0f, -0.02f), new Vector2(mouthHalfWidth * 2.25f, 0.07f), 0f,
+                accentColor, 9);
+        }
+
+        private static void CreateDispenserPart(
+            string partName,
+            Transform parent,
+            Sprite sprite,
+            Vector2 localPos,
+            Vector2 worldSize,
+            float angleDeg,
+            Color color,
+            int sortingOrder)
+        {
+            var go = new GameObject(partName);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            go.transform.localRotation = Quaternion.Euler(0f, 0f, angleDeg);
+
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.color = color;
+            sr.sortingOrder = sortingOrder;
+
+            Vector2 spriteSize = sprite != null ? (Vector2)sprite.bounds.size : Vector2.one;
+            float sx = spriteSize.x > 0.0001f ? worldSize.x / spriteSize.x : worldSize.x;
+            float sy = spriteSize.y > 0.0001f ? worldSize.y / spriteSize.y : worldSize.y;
+            go.transform.localScale = new Vector3(sx, sy, 1f);
         }
 
         private void BuildContainmentWalls(PlinkoConfig cfg, Sprite wallSprite, PhysicsMaterial2D wallMat)

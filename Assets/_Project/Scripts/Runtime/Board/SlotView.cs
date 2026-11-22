@@ -17,7 +17,7 @@ namespace FunFlow.Plinko
         [SerializeField] private Color selectedColor = new Color(0xF5 / 255f, 0xA6 / 255f, 0x23 / 255f, 1f);
 
         private System.Action<int> _onSelected;
-        private System.Action<int> _onBallEntered;
+        private System.Action<int, PlinkoBall> _onBallEntered;
         private bool _isSelected;
         private Vector3 _baseScale = Vector3.one;
         private Coroutine _flashCoroutine;
@@ -29,7 +29,7 @@ namespace FunFlow.Plinko
             CacheState();
         }
 
-        public void Initialize(int index, PlinkoConfig cfg, System.Action<int> onSelected, System.Action<int> onBallEntered)
+        public void Initialize(int index, PlinkoConfig cfg, System.Action<int> onSelected, System.Action<int, PlinkoBall> onBallEntered)
         {
             slotIndex = index;
             _onSelected = onSelected;
@@ -157,7 +157,7 @@ namespace FunFlow.Plinko
             var ball = other.GetComponent<PlinkoBall>();
             if (ball != null && ball.TryConsumeClassicArrival())
             {
-                _onBallEntered?.Invoke(slotIndex);
+                _onBallEntered?.Invoke(slotIndex, ball);
             }
         }
     }

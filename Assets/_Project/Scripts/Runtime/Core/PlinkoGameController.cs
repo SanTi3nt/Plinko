@@ -13,15 +13,13 @@ namespace FunFlow.Plinko
         [SerializeField] private ProceduralSfx sfx;
         [SerializeField] private Camera targetCamera;
 
-        [Header("Game Feel")]
-        [SerializeField] private float shakeDecay = 1.8f;
-        [SerializeField] private Vector2 maxShakeOffset = new Vector2(0.14f, 0.10f);
+        [Header("Pooling")]
+        [SerializeField] private int maxActiveBalls = 35;
 
-        private PlinkoBall _activeBall;
-        private Vector3 _cameraRestPos;
-        private float _trauma;
-        private float _shakeTime;
-        private bool _isDropping;
+        private readonly Queue<PlinkoBall> _ballPool = new Queue<PlinkoBall>();
+        private readonly HashSet<PlinkoBall> _activeBalls = new HashSet<PlinkoBall>();
+        private Transform _ballsContainer;
+        private PlinkoBall _templateBall;
 
         private int _selectedSlot = 3;
         private GameMode _currentMode = GameMode.ClassicRandom;
@@ -47,6 +45,8 @@ namespace FunFlow.Plinko
 
         private void Awake()
         {
+            QualitySettings.vSyncCount = 1;
+
             if (board == null)
             {
                 board = FindAnyObjectByType<PlinkoBoard>();
@@ -70,13 +70,9 @@ namespace FunFlow.Plinko
 
         private void Start()
         {
-            if (targetCamera != null)
+            if (targetCamera != null && config != null)
             {
-                _cameraRestPos = targetCamera.transform.position;
-                if (config != null)
-                {
-                    targetCamera.backgroundColor = config.backgroundColor;
-                }
+                targetCamera.backgroundColor = config.backgroundColor;
             }
 
             if (config == null)
@@ -108,8 +104,7 @@ namespace FunFlow.Plinko
                 hud.ClearResultBanner();
             }
 
-            EnsureBallInstance();
-            ParkBallAtSpawn();
+            InitializeBallPool();
         }
 
         private void Update()
@@ -117,14 +112,9 @@ namespace FunFlow.Plinko
             HandleKeyboardShortcuts();
         }
 
-        private void LateUpdate()
-        {
-            UpdateCameraShake();
-        }
-
         public void SelectSlot(int index)
         {
-            if (config == null || _isDropping)
+            if (config == null)
             {
                 return;
             }
@@ -153,7 +143,7 @@ namespace FunFlow.Plinko
 
         public void SetMode(GameMode mode)
         {
-            if (_isDropping || _currentMode == mode)
+            if (_currentMode == mode)
             {
                 return;
             }
@@ -173,33 +163,35 @@ namespace FunFlow.Plinko
 
         public void DropBall()
         {
-            if (_isDropping || config == null)
+            if (config == null || _activeBalls.Count >= maxActiveBalls)
             {
                 return;
             }
 
-            EnsureBallInstance();
-            if (_activeBall == null)
+            PlinkoBall ball = AcquireBall();
+            if (ball == null)
             {
                 return;
             }
 
-            _isDropping = true;
-            if (hud != null)
+            _activeBalls.Add(ball);
+
+            if (board != null)
             {
-                hud.SetDropInteractable(false);
-                hud.ClearResultBanner();
+                board.PulseDispenser();
             }
+
+            int targetSlotAtDrop = _selectedSlot;
 
             if (_currentMode == GameMode.ClassicRandom)
             {
-                _activeBall.LaunchClassic(config, OnBallLanded);
+                ball.LaunchClassic(config, targetSlotAtDrop, OnBallLanded, ReturnBallToPool);
             }
             else
             {
-                List<PlinkoMath.GuidedStep> path = PlinkoMath.GenerateGuidedPath(_selectedSlot, config);
+                List<PlinkoMath.GuidedStep> path = PlinkoMath.GenerateGuidedPath(targetSlotAtDrop, config);
                 System.Func<int, int, PegView> pegLookup = board != null ? board.GetPeg : null;
-                _activeBall.LaunchGuided(path, config, pegLookup, HandlePegBounce, OnBallLanded);
+                ball.LaunchGuided(path, config, targetSlotAtDrop, pegLookup, HandlePegBounce, OnBallLanded, ReturnBallToPool);
             }
         }
 
@@ -240,26 +232,24 @@ namespace FunFlow.Plinko
             {
                 sfx.PlayPegTick();
             }
-
-            AddTrauma(0.12f);
         }
 
-        private void OnBallEnteredSlot(int slotIndex)
+        private void OnBallEnteredSlot(int slotIndex, PlinkoBall ball)
         {
-            if (_activeBall != null)
+            if (ball != null)
             {
-                _activeBall.NotifyLandedExternally();
+                ball.NotifyLandedExternally();
             }
 
-            OnBallLanded(slotIndex);
+            OnBallLanded(ball, slotIndex);
         }
 
-        private void OnBallLanded(int landedSlot)
+        private void OnBallLanded(PlinkoBall ball, int landedSlot)
         {
-            _isDropping = false;
+            int targetSlot = ball != null ? ball.TargetSlot : _selectedSlot;
             _attempts++;
 
-            bool isWin = landedSlot == _selectedSlot;
+            bool isWin = landedSlot == targetSlot;
             if (isWin)
             {
                 _hits++;
@@ -268,8 +258,6 @@ namespace FunFlow.Plinko
                 {
                     sfx.PlayWin();
                 }
-
-                AddTrauma(0.38f);
             }
             else
             {
@@ -278,8 +266,6 @@ namespace FunFlow.Plinko
                 {
                     sfx.PlayMiss();
                 }
-
-                AddTrauma(0.16f);
             }
 
             if (board != null)
@@ -294,71 +280,60 @@ namespace FunFlow.Plinko
             if (hud != null)
             {
                 hud.UpdateStats(_hits, _attempts, _streak);
-                hud.ShowResultBanner(isWin, landedSlot, _selectedSlot);
-                hud.SetDropInteractable(true);
+                hud.ShowResultBanner(isWin, landedSlot, targetSlot);
             }
         }
 
-        private void EnsureBallInstance()
+        private void InitializeBallPool()
         {
-            if (_activeBall != null)
+            if (_ballsContainer == null)
+            {
+                var containerGo = new GameObject("BallsPool");
+                _ballsContainer = containerGo.transform;
+            }
+
+            PlinkoBall sceneBall = FindAnyObjectByType<PlinkoBall>();
+            if (sceneBall != null)
+            {
+                _templateBall = sceneBall;
+                sceneBall.transform.SetParent(_ballsContainer, true);
+                sceneBall.gameObject.SetActive(false);
+                _ballPool.Enqueue(sceneBall);
+            }
+        }
+
+        private PlinkoBall AcquireBall()
+        {
+            while (_ballPool.Count > 0)
+            {
+                PlinkoBall pooled = _ballPool.Dequeue();
+                if (pooled != null)
+                {
+                    return pooled;
+                }
+            }
+
+            PlinkoBall source = ballPrefab != null ? ballPrefab : _templateBall;
+            if (source == null)
+            {
+                return null;
+            }
+
+            PlinkoBall created = Instantiate(source, _ballsContainer);
+            created.name = $"PlinkoBall_{_activeBalls.Count + _ballPool.Count + 1}";
+            return created;
+        }
+
+        private void ReturnBallToPool(PlinkoBall ball)
+        {
+            if (ball == null)
             {
                 return;
             }
 
-            _activeBall = FindAnyObjectByType<PlinkoBall>();
-            if (_activeBall == null && ballPrefab != null)
-            {
-                _activeBall = Instantiate(ballPrefab);
-                _activeBall.name = "PlinkoBall";
-            }
-        }
-
-        private void ParkBallAtSpawn()
-        {
-            if (_activeBall == null || config == null)
-            {
-                return;
-            }
-
-            _activeBall.ApplyConfig(config);
-
-            var rb = _activeBall.GetComponent<Rigidbody2D>();
-            if (rb != null)
-            {
-                rb.bodyType = RigidbodyType2D.Kinematic;
-                rb.linearVelocity = Vector2.zero;
-                rb.angularVelocity = 0f;
-            }
-
-            Vector2 spawn = PlinkoMath.GetSpawnPosition(config);
-            _activeBall.transform.position = new Vector3(spawn.x, spawn.y, 0f);
-        }
-
-        private void AddTrauma(float amount)
-        {
-            _trauma = Mathf.Clamp01(_trauma + amount);
-        }
-
-        private void UpdateCameraShake()
-        {
-            if (targetCamera == null || _trauma <= 0f)
-            {
-                return;
-            }
-
-            _trauma = Mathf.Max(0f, _trauma - shakeDecay * Time.unscaledDeltaTime);
-            float shake = _trauma * _trauma;
-            _shakeTime += Time.unscaledDeltaTime * 30f;
-
-            float offsetX = maxShakeOffset.x * shake * Mathf.Sin(_shakeTime * 1.7f);
-            float offsetY = maxShakeOffset.y * shake * Mathf.Sin(_shakeTime * 2.3f);
-            targetCamera.transform.position = _cameraRestPos + new Vector3(offsetX, offsetY, 0f);
-
-            if (_trauma <= 0f)
-            {
-                targetCamera.transform.position = _cameraRestPos;
-            }
+            _activeBalls.Remove(ball);
+            ball.gameObject.SetActive(false);
+            _ballPool.Enqueue(ball);
         }
     }
 }

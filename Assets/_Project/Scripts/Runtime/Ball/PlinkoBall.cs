@@ -12,12 +12,17 @@ namespace FunFlow.Plinko
         [SerializeField] private SpriteRenderer bodyRenderer;
 
         private PlinkoConfig _config;
-        private System.Action<int> _onLanded;
+        private System.Action<PlinkoBall, int> _onLanded;
+        private System.Action<PlinkoBall> _onDespawnReady;
         private Coroutine _guidedCoroutine;
+        private Coroutine _despawnCoroutine;
         private bool _isClassicActive;
         private bool _arrivalConsumed;
         private float _stuckTimer;
         private float _slotY;
+        private Vector3 _baseScale = Vector3.one;
+
+        public int TargetSlot { get; private set; }
 
         private void Awake()
         {
@@ -59,7 +64,8 @@ namespace FunFlow.Plinko
             }
 
             float uniformScale = cfg.ballRadius / spriteRadius;
-            transform.localScale = new Vector3(uniformScale, uniformScale, 1f);
+            _baseScale = new Vector3(uniformScale, uniformScale, 1f);
+            transform.localScale = _baseScale;
 
             if (circleCollider != null)
             {
@@ -84,12 +90,18 @@ namespace FunFlow.Plinko
             return true;
         }
 
-        public void LaunchClassic(PlinkoConfig cfg, System.Action<int> onLanded)
+        public void LaunchClassic(
+            PlinkoConfig cfg,
+            int targetSlot,
+            System.Action<PlinkoBall, int> onLanded,
+            System.Action<PlinkoBall> onDespawnReady = null)
         {
             StopActiveDrop();
             ApplyConfig(cfg);
 
+            TargetSlot = targetSlot;
             _onLanded = onLanded;
+            _onDespawnReady = onDespawnReady;
             _arrivalConsumed = false;
             _isClassicActive = true;
 
@@ -98,7 +110,13 @@ namespace FunFlow.Plinko
             transform.position = new Vector3(spawn.x + xOffset, spawn.y, 0f);
             gameObject.SetActive(true);
 
+            if (circleCollider != null)
+            {
+                circleCollider.enabled = true;
+            }
+
             rb.bodyType = RigidbodyType2D.Dynamic;
+            rb.interpolation = RigidbodyInterpolation2D.Interpolate;
             rb.gravityScale = 1.8f;
             rb.linearDamping = 0f;
             rb.linearVelocity = Vector2.zero;
@@ -116,14 +134,18 @@ namespace FunFlow.Plinko
         public void LaunchGuided(
             List<PlinkoMath.GuidedStep> path,
             PlinkoConfig cfg,
+            int targetSlot,
             System.Func<int, int, PegView> pegLookup,
             System.Action onPegBounce,
-            System.Action<int> onLanded)
+            System.Action<PlinkoBall, int> onLanded,
+            System.Action<PlinkoBall> onDespawnReady = null)
         {
             StopActiveDrop();
             ApplyConfig(cfg);
 
+            TargetSlot = targetSlot;
             _onLanded = onLanded;
+            _onDespawnReady = onDespawnReady;
             _arrivalConsumed = false;
             _isClassicActive = false;
 
@@ -136,7 +158,13 @@ namespace FunFlow.Plinko
             transform.position = new Vector3(startPos.x, startPos.y, 0f);
             gameObject.SetActive(true);
 
+            if (circleCollider != null)
+            {
+                circleCollider.enabled = false;
+            }
+
             rb.bodyType = RigidbodyType2D.Kinematic;
+            rb.interpolation = RigidbodyInterpolation2D.None;
             rb.linearVelocity = Vector2.zero;
             rb.angularVelocity = 0f;
 
@@ -151,6 +179,61 @@ namespace FunFlow.Plinko
                 rb.linearVelocity *= 0.25f;
                 rb.linearDamping = 4f;
             }
+
+            StartDespawn(0.45f);
+        }
+
+        private void StartDespawn(float settleDelay)
+        {
+            if (_despawnCoroutine != null || !gameObject.activeInHierarchy)
+            {
+                return;
+            }
+
+            _despawnCoroutine = StartCoroutine(DespawnRoutine(settleDelay));
+        }
+
+        private IEnumerator DespawnRoutine(float settleDelay)
+        {
+            if (settleDelay > 0f)
+            {
+                yield return new WaitForSeconds(settleDelay);
+            }
+
+            if (circleCollider != null)
+            {
+                circleCollider.enabled = false;
+            }
+
+            if (rb != null)
+            {
+                rb.bodyType = RigidbodyType2D.Kinematic;
+                rb.linearVelocity = Vector2.zero;
+                rb.angularVelocity = 0f;
+            }
+
+            const float fadeDuration = 0.16f;
+            float elapsed = 0f;
+            Color baseColor = _config != null ? _config.ballColor : Color.white;
+
+            while (elapsed < fadeDuration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / fadeDuration);
+                transform.localScale = _baseScale * Mathf.Lerp(1f, 0.35f, t);
+
+                if (bodyRenderer != null)
+                {
+                    Color c = baseColor;
+                    c.a = Mathf.Lerp(1f, 0f, t);
+                    bodyRenderer.color = c;
+                }
+
+                yield return null;
+            }
+
+            _despawnCoroutine = null;
+            _onDespawnReady?.Invoke(this);
         }
 
         private void StopActiveDrop()
@@ -159,6 +242,12 @@ namespace FunFlow.Plinko
             {
                 StopCoroutine(_guidedCoroutine);
                 _guidedCoroutine = null;
+            }
+
+            if (_despawnCoroutine != null)
+            {
+                StopCoroutine(_despawnCoroutine);
+                _despawnCoroutine = null;
             }
 
             _isClassicActive = false;
@@ -179,7 +268,8 @@ namespace FunFlow.Plinko
                 {
                     float rawIndex = pos.x / _config.horizontalSpacing + (_config.slotCount - 1) * 0.5f;
                     int nearestSlot = Mathf.Clamp(Mathf.RoundToInt(rawIndex), 0, _config.slotCount - 1);
-                    _onLanded?.Invoke(nearestSlot);
+                    _onLanded?.Invoke(this, nearestSlot);
+                    StartDespawn(0.25f);
                 }
 
                 return;
@@ -252,7 +342,8 @@ namespace FunFlow.Plinko
 
             _guidedCoroutine = null;
             _arrivalConsumed = true;
-            _onLanded?.Invoke(path[path.Count - 1].col);
+            _onLanded?.Invoke(this, path[path.Count - 1].col);
+            StartDespawn(0.25f);
         }
     }
 }
